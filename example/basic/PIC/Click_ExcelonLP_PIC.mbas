@@ -1,0 +1,104 @@
+'
+'Example for ExcelonLP Click
+'
+'    Date          : avg 2018.
+'    Author        : Katarina Perenidc
+'
+'Test configuration PIC :
+'    
+'    MCU             : P18F87K22
+'    Dev. Board      : EasyPIC PRO v7
+'    PIC Compiler ver : v7.2.0.0
+'
+'---
+'
+'Description :
+'
+'The application is composed of three sections :
+'
+'- System Initialization - Initializes SPI module and set CS and PWM pin as OUTPUT
+'- Application Initialization - Initializes Driver init
+'- Application Task - (code snippet) - Reads device ID, writes 6-bytes (MikroE) to memory and reads 6-bytes from memory
+'
+'
+program Click_ExcelonLP_PIC
+
+include Click_ExcelonLP_types
+include Click_ExcelonLP_config
+
+dim
+    OUTBuf as uint8_t[20] 
+    demoText as char[50] 
+    cnt as uint8_t 
+    MemoryData as char[3] 
+    sendBuffer as uint8_t[7] 
+    memoryAddress as uint32_t 
+    
+sub procedure systemInit() 
+
+    mikrobus_gpioInit(_MIKROBUS1, _MIKROBUS_CS_PIN, _GPIO_OUTPUT) 
+    mikrobus_gpioInit(_MIKROBUS1, _MIKROBUS_PWM_PIN, _GPIO_OUTPUT) 
+    mikrobus_spiInit(_MIKROBUS1, @_EXCELONLP_SPI_CFG[0]) 
+    mikrobus_logInit(_LOG_USBUART, 115200) 
+    mikrobus_logWrite("--- System init ---", _LOG_LINE) 
+    Delay_ms(100) 
+
+end sub
+
+sub procedure applicationInit() 
+
+    excelonlp_spiDriverInit(T_EXCELONLP_P(@_MIKROBUS1_GPIO), T_EXCELONLP_P(@_MIKROBUS1_SPI)) 
+
+end sub
+
+sub procedure applicationTask() 
+
+    mikrobus_logWrite("Read Device ID : ", _LOG_TEXT) 
+    excelonlp_sendCommand(_EXCELONLP_OPCODE_SET_WRITE_ENABLE_LATCH) 
+    excelonlp_readData(_EXCELONLP_OPCODE_READ_DEVICE_ID, @OUTBuf[0], 9) 
+    for cnt = 0 to 9-1
+        IntToHex(OUTBuf[cnt], demoText) 
+        mikrobus_logWrite(" 0x", _LOG_TEXT) 
+        mikrobus_logWrite(demoText, _LOG_TEXT) 
+        Delay_100ms() 
+    next cnt
+    mikrobus_logWrite(" ", _LOG_LINE) 
+    mikrobus_logWrite("Write MikroE data.", _LOG_LINE) 
+    excelonlp_sendCommand(_EXCELONLP_OPCODE_SET_WRITE_ENABLE_LATCH) 
+    for cnt = 0 to 6-1
+        excelonlp_sendCommand(_EXCELONLP_OPCODE_SET_WRITE_ENABLE_LATCH) 
+        excelonlp_writeMemoryData(_EXCELONLP_OPCODE_WRITE_MEMORY_DATA, memoryAddress, sendBuffer[cnt]) 
+        inc(memoryAddress)
+        Delay_100ms() 
+    next cnt
+    memoryAddress = 0x00000055 
+    mikrobus_logWrite("Read memory data : ", _LOG_TEXT) 
+    for cnt = 0 to 6-1
+        MemoryData[0] = excelonlp_readMemoryData(_EXCELONLP_OPCODE_READ_MEMORY_DATA, memoryAddress) 
+        inc(memoryAddress)
+        mikrobus_logWrite(MemoryData, _LOG_TEXT) 
+        Delay_100ms() 
+    next cnt
+    Delay_ms(5000) 
+
+end sub
+
+main :
+    OUTBuf[0] = 0
+    demoText[0] = 0
+    sendBuffer[0] = "M"
+    sendBuffer[1] = "i"
+    sendBuffer[2] = "k"
+    sendBuffer[3] = "r"
+    sendBuffer[4] = "o"
+    sendBuffer[5] = "E"
+    sendBuffer[6] = 0
+    memoryAddress = 0x00000055
+
+    systemInit() 
+    applicationInit() 
+    while (1) 
+        applicationTask() 
+    wend
+
+end.
